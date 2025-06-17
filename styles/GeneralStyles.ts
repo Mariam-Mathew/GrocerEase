@@ -4,6 +4,7 @@ const GeneralStyles = StyleSheet.create({
   mainContainer: {
     height: "100%",
     width: "100%",
+    backgroundColor: "transparent",
   },
   heading: {
     fontSize: 24,

@@ -15,7 +15,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mariam22.GrocerEase"
+      "bundleIdentifier": "com.mariam22.GrocerEase",
+      "googleServicesFile": "./GoogleService-Info.plist",
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +24,11 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.mariam22.GrocerEase"
+      "package": "com.mariam22.GrocerEase",
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "android.permission.RECORD_AUDIO" , "android.permission.INTERNET"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -32,7 +37,8 @@
     },
     "plugins": [
       "expo-router",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
