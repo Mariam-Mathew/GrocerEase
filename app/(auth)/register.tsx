@@ -1,7 +1,11 @@
 import PhoneInputWithPicker from "@/components/InputPhoneText";
 import OtpPopup from "@/components/OtpPopup";
 import GeneralStyles from "@/styles/GeneralStyles";
+import { baseUrl } from "@/utils/config";
+import axios from "axios";
+import * as Google from "expo-auth-session/providers/google";
 import { router } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import React, { useEffect, useState } from "react";
 import {
   Dimensions,
@@ -14,9 +18,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-
-import * as Google from "expo-auth-session/providers/google";
-import * as WebBrowser from "expo-web-browser";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -62,10 +63,14 @@ export default function Register() {
   }, [response]);
 
   const fetchUserInfo = async (token: any) => {
+    console.log("Token:", token);
     const res = await fetch("https://www.googleapis.com/userinfo/v2/me", {
       headers: { Authorization: `Bearer ${token}` },
     });
-    console.log("User info:", res.json());
+    const userInfo = await res.json();
+    console.log("User Info:", userInfo);
+    // Call this before your signup
+    googleSignUp(userInfo);
   };
 
   const handleGoogleSignUp = async () => {
@@ -73,6 +78,59 @@ export default function Register() {
       await promptAsync();
     } catch (error) {
       console.error("Google login error:", error);
+    }
+  };
+
+  const googleSignUp = async (userInfo: any) => {
+    const value = {
+      name: userInfo.given_name || userInfo.name,
+      email: userInfo.email,
+    };
+
+    console.log("=== Starting Google Signup ===");
+    console.log("Base URL:", baseUrl);
+    console.log("Request URL:", `${baseUrl}auth/google-signup`);
+    console.log("Request Data:", JSON.stringify(value, null, 2));
+
+    try {
+      const response = await axios.post(`${baseUrl}auth/google-signup`, value, {
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        timeout: 10000,
+        validateStatus: (status) => status < 500, // Reject only if status is 500 or higher
+      });
+
+      console.log("=== Response ===");
+      console.log("Status:", response.status);
+      console.log("Headers:", JSON.stringify(response.headers, null, 2));
+      console.log("Data:", response.data);
+
+      return response.data;
+    } catch (error) {
+      console.error("=== Error Details ===");
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          console.error("Response Error:", {
+            status: error.response.status,
+            statusText: error.response.statusText,
+            headers: error.response.headers,
+            data: error.response.data,
+          });
+        } else if (error.request) {
+          console.error("No Response Received:", {
+            message: error.message,
+            code: error.code,
+            request: error.request._response || "No response data",
+          });
+        } else {
+          console.error("Request Setup Error:", error.message);
+        }
+      } else {
+        console.error("Unexpected Error:", error);
+      }
+      throw error;
     }
   };
 
@@ -127,8 +185,11 @@ export default function Register() {
       //   );
     }
   };
-  const handleOtpVerified = () => {
+  const handleOtpVerified = async (otp: string) => {
+    // In a real app, you would verify the OTP here
+    // For now, just navigate to login
     router.push("/login");
+    return Promise.resolve();
   };
   return (
     <SafeAreaView style={GeneralStyles.mainContainer}>
