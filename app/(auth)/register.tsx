@@ -2,12 +2,14 @@ import PhoneInputWithPicker from "@/components/InputPhoneText";
 import OtpPopup from "@/components/OtpPopup";
 import GeneralStyles from "@/styles/GeneralStyles";
 import { baseUrl } from "@/utils/config";
+import useStore from "@/zustand/store";
 import axios from "axios";
 import * as Google from "expo-auth-session/providers/google";
 import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import React, { useEffect, useState } from "react";
 import {
+  Alert,
   Dimensions,
   Image,
   ImageBackground,
@@ -54,6 +56,8 @@ export default function Register() {
       "723221915171-9ggjhvc6stlt7bd80l3ijbg057rh85ak.apps.googleusercontent.com",
   });
 
+  const { login } = useStore();
+
   useEffect(() => {
     if (response?.type === "success") {
       const { authentication }: any = response;
@@ -61,6 +65,21 @@ export default function Register() {
       console.log("response info:", response);
     }
   }, [response]);
+
+  const handleLoginSuccess = async (tokens: {
+    accessToken: string;
+    refreshToken: string;
+    userID: string;
+  }) => {
+    try {
+      await login(tokens);
+      // Navigation will be handled automatically by the NavigationController
+      Alert.alert("Success", "Signed in successfully!");
+    } catch (error) {
+      console.error("Login failed:", error);
+      Alert.alert("Error", "Failed to save login information");
+    }
+  };
 
   const fetchUserInfo = async (token: any) => {
     console.log("Token:", token);
@@ -106,7 +125,22 @@ export default function Register() {
       console.log("Status:", response.status);
       console.log("Headers:", JSON.stringify(response.headers, null, 2));
       console.log("Data:", response.data);
+      const res: any = response.data;
+      if (response.data) {
+        console.log("User Data:", res);
+        // if (!res.accessToken || !res.refreshToken) {
+        //   throw new Error("Invalid tokens received from server");
+        // }
 
+        // Store tokens and navigate
+        await handleLoginSuccess({
+          accessToken: res?.accessToken,
+          refreshToken: res.refreshToken,
+          userID: res.user?.user_id || res.user?.id,
+        });
+      } else {
+        throw new Error("Invalid response structure from server");
+      }
       return response.data;
     } catch (error) {
       console.error("=== Error Details ===");
