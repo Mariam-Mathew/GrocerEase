@@ -18,6 +18,7 @@
       "bundleIdentifier": "com.mariam22.GrocerEase",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"],
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true,
           "NSExceptionDomains": {
