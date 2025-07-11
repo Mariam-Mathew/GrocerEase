@@ -1,11 +1,11 @@
-import { NotificationPush } from "@/lib/NotificationPush";
-import { baseUrl } from "@/utils/config";
 import { useFocusEffect } from "@react-navigation/native";
 import axios from "axios";
 import * as Notifications from "expo-notifications";
 import * as TaskManager from "expo-task-manager";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Button, ScrollView, StyleSheet, Text, View } from "react-native";
+import { NotificationPush } from "../../lib/NotificationPush";
+import { baseUrl } from "../../utils/config";
 
 /// Notification registration
 Notifications.setNotificationHandler({
@@ -104,7 +104,7 @@ export default function HomeScreen() {
   // api call for pushtoken
   const setToken = async () => {
     try {
-      const response = await axios.post(`${baseUrl}/auth/test/notification`, {
+      const response = await axios.post(`${baseUrl}auth/test/notification`, {
         fcm_token: expoPushToken,
       });
       console.log("response", response);
@@ -115,8 +115,42 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Welcome to GrocerEase</Text>
-      <Text style={styles.subtitle}>Your grocery shopping made easy</Text>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>Welcome User</Text>
+
+        <View style={styles.buttonContainer}>
+          <Button
+            title="Create Grocery List"
+            // onPress={() => navigation.navigate("GroceryList")}
+          />
+        </View>
+        <View style={styles.buttonContainer}>
+          <Button
+            title="Pantry Items"
+            // onPress={() => navigation.navigate("Pantry")}
+          />
+        </View>
+        <View style={styles.buttonContainer}>
+          <Button
+            title="Budget Cards"
+            // onPress={() => navigation.navigate("Budget")}
+          />
+        </View>
+        <View style={styles.buttonContainer}>
+          <Button
+            title="Recipe Suggestions"
+            // onPress={() => navigation.navigate("Recipes")}
+          />
+        </View>
+
+        <View style={{ marginTop: 30 }}>
+          <Button
+            title="Logout"
+            color="red"
+            //  onPress={logout}
+          />
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -137,4 +171,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
   },
+  buttonContainer: { marginVertical: 10 },
 });

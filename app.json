@@ -18,16 +18,16 @@
       "bundleIdentifier": "com.mariam22.GrocerEase",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"],
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true,
-          "NSExceptionDomains": {
-            "13.204.22.98": {
-              "NSExceptionAllowsInsecureHTTPLoads": true,
-              "NSIncludesSubdomains": true
-            }
-          }
-        }
+        "UIBackgroundModes": ["remote-notification"]
+        // "NSAppTransportSecurity": {
+        //   "NSAllowsArbitraryLoads": true,
+        //   "NSExceptionDomains": {
+        //     "13.204.22.98": {
+        //       "NSExceptionAllowsInsecureHTTPLoads": true,
+        //       "NSIncludesSubdomains": true
+        //     }
+        //   }
+        // }
       }
     },
     "android": {
@@ -38,7 +38,6 @@
       "edgeToEdgeEnabled": true,
       "package": "com.mariam22.GrocerEase",
       "googleServicesFile": "./google-services.json",
-      "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.INTERNET"
@@ -56,17 +55,17 @@
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/favicon.png",
+          "mode": "production"
+        }
+      ], [
         "expo-build-properties",
         {
           "ios": {
             "useFrameworks": "static"
           }
-        }
-      ],[
-        "expo-notifications",
-        {
-          "icon": "./assets/images/favicon.png",
-          "mode": "production"
         }
       ]
     ],

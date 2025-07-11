@@ -26,6 +26,7 @@ WebBrowser.maybeCompleteAuthSession();
 interface PhoneData {
   isValid: boolean;
   countryCode: string;
+  callingCode: string;
   nationalNumber: string;
   phoneNumber: string;
   fullNumber: string;
@@ -225,16 +226,6 @@ export default function Login() {
   const handleChange = useCallback((field: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, phone: "", otp: "" }));
-  }, []);
-
-  const handleFormattedChange = useCallback((data: PhoneData) => {
-    console.log("Phone data received:", data);
-    setForm((prev) => ({
-      ...prev,
-      phoneData: data,
-      phoneNumber: data.fullNumber || data.phoneNumber,
-    }));
-    setErrors((prev) => ({ ...prev, phone: "" }));
   }, []);
 
   const validateForm = () => {
@@ -500,14 +491,54 @@ export default function Login() {
             {!otpVisible && (
               <>
                 <PhoneInputWithPicker
-                  onChangeText={(text: string) =>
-                    handleChange("phoneNumber", text)
-                  }
-                  onChangeFormattedText={handleFormattedChange}
-                  placeholder="7991162753"
-                  label="Phone Number*"
+                  value={form.phoneData?.phoneNumber || ""}
+                  onChangeText={(text) => {
+                    const phoneData: PhoneData = {
+                      ...(form.phoneData || {
+                        countryCode: "IN",
+                        callingCode: "91",
+                        nationalNumber: "",
+                        phoneNumber: "",
+                        fullNumber: "",
+                        isValid: false,
+                      }),
+                      nationalNumber: text,
+                      phoneNumber: text,
+                      fullNumber: `+91${text}`,
+                      isValid: text.length === 10,
+                      countryCode: "IN",
+                      callingCode: "91",
+                    };
+                    setForm((prev) => ({
+                      ...prev,
+                      phoneData,
+                      phoneNumber: phoneData.fullNumber,
+                    }));
+                  }}
+                  onChangeFormattedText={(data) => {
+                    const phoneData: PhoneData = {
+                      countryCode: data.countryCode || "IN",
+                      callingCode: data.callingCode || "91",
+                      nationalNumber: data.phoneNumber,
+                      phoneNumber: data.phoneNumber,
+                      fullNumber:
+                        data.fullNumber ||
+                        `+${data.callingCode}${data.phoneNumber}`,
+                      isValid: data.phoneNumber
+                        ? data.phoneNumber.length >= 10
+                        : false,
+                    };
+
+                    setForm((prev) => ({
+                      ...prev,
+                      phoneData,
+                      phoneNumber: phoneData.fullNumber,
+                    }));
+                  }}
                   maxLength={10}
                   defaultCountryCode="IN"
+                  label="Mobile Number"
+                  placeholder="7891235460"
                   error={errors.phone}
                 />
 
@@ -548,6 +579,20 @@ export default function Login() {
                     Sign in with Google
                   </Text>
                 </TouchableOpacity>
+                <View>
+                  <Text style={LoginStyles.otherSignUpText}>
+                    Don&apos;t have an account?{" "}
+                    <Text
+                      onPress={() => router.replace("/register")}
+                      style={[
+                        LoginStyles.otherSignUpText,
+                        { color: "#2E674D", backgroundColor: "transparent" },
+                      ]}
+                    >
+                      Register
+                    </Text>
+                  </Text>
+                </View>
               </>
             )}
 

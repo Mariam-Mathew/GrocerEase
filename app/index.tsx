@@ -1,8 +1,8 @@
-import useAuth from "@/hooks/useAuth";
 import { useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
+import useAuth from "../hooks/useAuth";
 
 // Keep the splash screen visible while loading
 SplashScreen.preventAutoHideAsync();

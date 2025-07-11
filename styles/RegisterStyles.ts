@@ -1,72 +1,18 @@
-import { StyleSheet } from "react-native";
+import { Dimensions, StyleSheet } from "react-native";
 
-const LoginStyles = StyleSheet.create({
+const RegisterStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
   },
-  otpContainer: {
-    marginTop: 20,
-    padding: 20,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    elevation: 3,
-  },
-  otpText: {
-    fontSize: 16,
-    marginBottom: 15,
-    textAlign: "center",
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 5,
-    padding: 10,
-    marginBottom: 15,
-    fontSize: 16,
-    textAlign: "center",
-  },
-  button: {
-    backgroundColor: "#2E674D",
-    padding: 15,
-    borderRadius: 5,
-    alignItems: "center",
-    marginBottom: 15,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  resendText: {
-    color: "#2E674D",
-    textAlign: "center",
-    textDecorationLine: "underline",
-  },
-  disabledText: {
-    color: "#ccc",
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1000,
+  disabledButton: {
+    opacity: 0.7,
   },
   backgroundImage: {
     flex: 1,
   },
   formContainer: {
-    flex: 0.5,
-    justifyContent: "center",
-    padding: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    margin: 20,
-    borderRadius: 10,
-    position: "absolute",
-    top: "35%",
-    right: 0,
-    left: 0,
+    marginTop: Dimensions.get("window").height * 0.3,
+    paddingHorizontal: "5%",
   },
   title: {
     fontSize: 24,
@@ -108,9 +54,6 @@ const LoginStyles = StyleSheet.create({
     marginTop: 15,
     alignItems: "center",
   },
-  disabledButton: {
-    backgroundColor: "#ccc",
-  },
   submitButtonText: {
     color: "white",
     fontSize: 16,
@@ -126,8 +69,8 @@ const LoginStyles = StyleSheet.create({
     marginTop: "5%",
     alignItems: "center",
     justifyContent: "space-evenly",
-    paddingVertical: "2%",
-    paddingHorizontal: "5%",
+    width: "50%",
+    padding: "2%",
     borderRadius: 100,
     alignSelf: "center",
     flexDirection: "row",
@@ -151,4 +94,4 @@ const LoginStyles = StyleSheet.create({
   },
 });
 
-export default LoginStyles;
+export default RegisterStyles;

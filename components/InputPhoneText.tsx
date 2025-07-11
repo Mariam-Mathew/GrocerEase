@@ -6,10 +6,34 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import CountryPicker from "react-native-country-picker-modal";
+import CountryPicker, {
+  Country,
+  CountryCode,
+} from "react-native-country-picker-modal";
 
-// Enhanced PhoneInput Component
-const PhoneInputWithPicker = ({
+type PhoneInputWithPickerProps = {
+  value?: string;
+  onChangeText?: (fullNumber: string) => void;
+  onChangeFormattedText?: (details: {
+    countryCode: CountryCode;
+    callingCode: string;
+    phoneNumber: string;
+    fullNumber: string;
+    isValid: boolean;
+  }) => void;
+  placeholder?: string;
+  label?: string;
+  maxLength?: number;
+  defaultCountryCode?: CountryCode;
+  style?: any;
+  inputStyle?: any;
+  labelStyle?: any;
+  containerStyle?: any;
+  error?: string | null;
+  disabled?: boolean;
+};
+
+const PhoneInputWithPicker: React.FC<PhoneInputWithPickerProps> = ({
   value = "",
   onChangeText,
   onChangeFormattedText,
@@ -23,73 +47,58 @@ const PhoneInputWithPicker = ({
   containerStyle,
   error,
   disabled = false,
-}: any) => {
-  const [countryCode, setCountryCode] = useState(defaultCountryCode);
-  const [country, setCountry] = useState(null);
+}) => {
+  const [countryCode, setCountryCode] =
+    useState<CountryCode>(defaultCountryCode);
+  const [callingCode, setCallingCode] = useState<string>("91"); // default India
   const [phoneNumber, setPhoneNumber] = useState(value);
   const [showPicker, setShowPicker] = useState(false);
-  const [callingCode, setCallingCode] = useState("91"); // Default for India
 
-  const handlePhoneChange = (text: any) => {
-    // Remove any non-numeric characters
-    const cleanedText = text.replace(/[^0-9]/g, "");
+  const onSelect = (country: Country) => {
+    setCountryCode(country.cca2);
+    setCallingCode(country.callingCode[0] || ""); // Take first calling code
 
-    // Limit to maxLength
-    const limitedText = cleanedText.slice(0, maxLength);
+    // Trigger parent's callbacks with updated value
+    const fullNumber = `+${country.callingCode[0] || ""}${phoneNumber}`;
 
-    setPhoneNumber(limitedText);
-
-    // Call the parent's onChangeText with full phone number
     if (onChangeText) {
-      onChangeText(`+${callingCode}${limitedText}`);
+      onChangeText(fullNumber);
     }
-
-    // Also provide formatted text if callback exists
     if (onChangeFormattedText) {
       onChangeFormattedText({
-        countryCode: countryCode,
-        callingCode: callingCode,
-        phoneNumber: limitedText,
-        fullNumber: `+${callingCode}${limitedText}`,
-        isValid: limitedText.length >= 10, // Basic validation
-      });
-    }
-  };
-
-  const onSelectCountry = (selectedCountry: any) => {
-    setCountry(selectedCountry);
-    setCountryCode(selectedCountry.cca2);
-    setCallingCode(selectedCountry.callingCode[0]);
-
-    // Update parent with new country code
-    if (onChangeText) {
-      onChangeText(`+${selectedCountry.callingCode[0]}${phoneNumber}`);
-    }
-
-    if (onChangeFormattedText) {
-      onChangeFormattedText({
-        countryCode: selectedCountry.cca2,
-        callingCode: selectedCountry.callingCode[0],
-        phoneNumber: phoneNumber,
-        fullNumber: `+${selectedCountry.callingCode[0]}${phoneNumber}`,
+        countryCode: country.cca2,
+        callingCode: country.callingCode[0] || "",
+        phoneNumber,
+        fullNumber,
         isValid: phoneNumber.length >= 10,
       });
     }
   };
 
-  const getCharacterCount = () => {
-    return `${phoneNumber.length}/${maxLength}`;
-  };
+  const handlePhoneChange = (text: string) => {
+    // Cleanup input to digits only and limit characters
+    const cleanedText = text.replace(/[^0-9]/g, "").slice(0, maxLength);
+    setPhoneNumber(cleanedText);
 
-  const getCharacterCountColor = () => {
-    if (phoneNumber.length === maxLength) return "#28a745"; // Green when complete
-    if (phoneNumber.length > 0) return "#ffc107"; // Yellow when typing
-    return "#6c757d"; // Gray when empty
+    const fullNumber = `+${callingCode}${cleanedText}`;
+
+    if (onChangeText) {
+      onChangeText(fullNumber);
+    }
+    if (onChangeFormattedText) {
+      onChangeFormattedText({
+        countryCode,
+        callingCode,
+        phoneNumber: cleanedText,
+        fullNumber,
+        isValid: cleanedText.length >= 10,
+      });
+    }
   };
 
   return (
     <View style={[styles.container, containerStyle]}>
-      {label && <Text style={[styles.label, labelStyle]}>{label}</Text>}
+      {!!label && <Text style={[styles.label, labelStyle]}>{label}</Text>}
 
       <View
         style={[
@@ -99,73 +108,71 @@ const PhoneInputWithPicker = ({
           disabled && styles.inputDisabled,
         ]}
       >
-        {/* Country Code Selector */}
         <TouchableOpacity
-          style={styles.countrySelector}
           onPress={() => !disabled && setShowPicker(true)}
+          style={styles.countrySelector}
           disabled={disabled}
         >
           <CountryPicker
-            countryCode={countryCode}
-            withFilter
-            withFlag
-            withCountryNameButton={false}
-            withCallingCodeButton
-            onSelect={onSelectCountry}
-            visible={showPicker}
-            onClose={() => setShowPicker(false)}
-            containerButtonStyle={styles.countryPickerButton}
-            renderFlagButton={() => (
-              <View style={styles.flagContainer}>
-                <CountryPicker
-                  countryCode={countryCode}
-                  withFlag
-                  withEmoji
-                  withCountryNameButton={false}
-                  withCallingCodeButton={false}
-                />
-                <Text style={styles.callingCode}>+{callingCode}</Text>
-              </View>
-            )}
+            {...{
+              countryCode,
+              withFlag: true,
+              withCallingCode: true,
+              withFilter: true,
+              withEmoji: true,
+              onSelect,
+              visible: showPicker,
+              onClose: () => setShowPicker(false),
+            }}
+            containerButtonStyle={{
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+            translation="common"
           />
-          {!disabled && <Text style={styles.dropdownArrow}>▼</Text>}
+          <Text style={styles.callingCode}>+{callingCode}</Text>
         </TouchableOpacity>
 
-        {/* Separator */}
         <View style={styles.separator} />
 
-        {/* Phone Number Input */}
         <TextInput
+          value={phoneNumber}
+          onChangeText={handlePhoneChange}
+          placeholder={placeholder}
+          keyboardType="phone-pad"
+          maxLength={maxLength}
+          editable={!disabled}
           style={[
             styles.phoneInput,
             inputStyle,
             disabled && styles.disabledInput,
           ]}
-          value={phoneNumber}
-          onChangeText={handlePhoneChange}
-          placeholder={placeholder}
           placeholderTextColor="#999"
-          keyboardType="phone-pad"
-          maxLength={maxLength}
-          editable={!disabled}
         />
 
-        {/* Character Count */}
         <Text
-          style={[styles.characterCount, { color: getCharacterCountColor() }]}
+          style={[
+            styles.characterCount,
+            {
+              color:
+                phoneNumber.length === maxLength
+                  ? "#28a745"
+                  : phoneNumber.length > 0
+                  ? "#ffc107"
+                  : "#6c757d",
+            },
+          ]}
         >
-          {getCharacterCount()}
+          {`${phoneNumber.length}/${maxLength}`}
         </Text>
       </View>
 
-      {/* Error Message */}
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      {!!error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  // PhoneInput Styles
   container: {
     marginVertical: 10,
   },
@@ -198,24 +205,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingRight: 8,
   },
-  countryPickerButton: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  flagContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
   callingCode: {
     fontSize: 16,
-    fontWeight: "500",
+    marginLeft: 6,
     color: "#333",
-    marginLeft: 6,
-  },
-  dropdownArrow: {
-    fontSize: 10,
-    color: "#666",
-    marginLeft: 6,
+    fontWeight: "500",
   },
   separator: {
     width: 1,

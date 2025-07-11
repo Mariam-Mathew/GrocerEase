@@ -1,20 +1,22 @@
 import PhoneInputWithPicker from "@/components/InputPhoneText";
 import OtpPopup from "@/components/OtpPopup";
 import GeneralStyles from "@/styles/GeneralStyles";
+import RegisterStyles from "@/styles/RegisterStyles";
 import { baseUrl } from "@/utils/config";
 import useStore from "@/zustand/store";
+import auth from "@react-native-firebase/auth";
 import axios from "axios";
 import * as Google from "expo-auth-session/providers/google";
 import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
-  Dimensions,
   Image,
   ImageBackground,
+  Keyboard,
   SafeAreaView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -26,8 +28,10 @@ WebBrowser.maybeCompleteAuthSession();
 interface PhoneData {
   isValid: boolean;
   countryCode: string;
+  callingCode: string;
   nationalNumber: string;
   phoneNumber: string;
+  fullNumber: string;
 }
 
 const INITIAL_FORM = {
@@ -44,8 +48,11 @@ const INITIAL_ERRORS = {
 export default function Register() {
   const [form, setForm] = useState(INITIAL_FORM);
   const [errors, setErrors] = useState(INITIAL_ERRORS);
-
   const [otpVisible, setOtpVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
+  const [confirmation, setConfirmation] = useState<any>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     iosClientId:
@@ -176,10 +183,6 @@ export default function Register() {
     }));
   };
 
-  const handleFormattedChange = (data: PhoneData) => {
-    setForm((prev) => ({ ...prev, phoneData: data }));
-  };
-
   const validateForm = () => {
     let valid = true;
     let newErrors = { ...INITIAL_ERRORS };
@@ -201,48 +204,150 @@ export default function Register() {
     return valid;
   };
 
-  const handleSubmit = () => {
-    if (validateForm()) {
+  // Resend timer effect
+  useEffect(() => {
+    if (resendTimer > 0) {
+      timerRef.current = setInterval(() => {
+        setResendTimer((prev) => {
+          if (prev <= 1) {
+            if (timerRef.current) clearInterval(timerRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [resendTimer]);
+
+  const startResendTimer = () => {
+    setResendTimer(30); // 30 seconds
+  };
+
+  const handleSubmit = async () => {
+    if (loading || !validateForm() || !form.phoneData) {
+      return;
+    }
+
+    setLoading(true);
+    Keyboard.dismiss();
+
+    try {
+      const phoneNumber =
+        form.phoneData.nationalNumber || form.phoneData.phoneNumber;
+      const fullPhoneNumber = `+91${phoneNumber}`;
+
+      console.log("Sending OTP to:", fullPhoneNumber);
+
+      const authInstance = auth();
+      const confirmationResult = await authInstance.signInWithPhoneNumber(
+        fullPhoneNumber
+      );
+
+      if (!confirmationResult) {
+        throw new Error("Failed to send verification code");
+      }
+
+      console.log("Verification code sent successfully");
+      setConfirmation(confirmationResult);
       setOtpVisible(true);
-      //   Alert.alert(
-      //     "Registration",
-      //     `Name: ${form.name}\nPhone: ${form.phoneData?.phoneNumber}`,
-      //     [
-      //       {
-      //         text: "OK",
-      //         onPress: () => {
-      //           // API call here
-      //           // console.log("Registration data:", { ...form });
-      //         },
-      //       },
-      //     ]
-      //   );
+      startResendTimer();
+
+      // Focus OTP input after a short delay
+      setTimeout(() => {
+        // You'll need to add a ref to your OTP input in the OtpPopup component
+        // and pass it here to focus
+      }, 500);
+
+      Alert.alert("Success", "OTP sent to your phone number");
+    } catch (error: any) {
+      console.error("Error sending OTP:", error);
+      Alert.alert("Error", "Failed to send OTP. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
   const handleOtpVerified = async (otp: string) => {
-    // In a real app, you would verify the OTP here
-    // For now, just navigate to login
-    router.push("/login");
-    return Promise.resolve();
+    if (!confirmation) {
+      Alert.alert(
+        "Error",
+        "No confirmation available. Please request OTP again."
+      );
+      return Promise.reject("No confirmation available");
+    }
+
+    setLoading(true);
+
+    try {
+      const userCredential = await confirmation.confirm(otp);
+
+      if (!userCredential?.user) {
+        throw new Error("Failed to verify OTP");
+      }
+
+      const user: any = userCredential.user;
+      console.log("User verified successfully:", user.uid);
+
+      // Here you would typically send the verified phone number to your backend
+      // along with the user's name to complete registration
+      const registrationData = {
+        name: form.name,
+        phoneNumber:
+          form.phoneData?.fullNumber || `+91${form.phoneData?.phoneNumber}`,
+        uid: user.uid,
+      };
+
+      // Call your registration API here
+      // const response = await axios.post(`${baseUrl}auth/register`, registrationData);
+      // const { accessToken, refreshToken } = response.data;
+      // Remove the unused variable warning by using the variable
+      console.log("Registration data:", registrationData);
+
+      // For now, just show success and navigate to login
+      Alert.alert("Success", "Registration successful! Please login.");
+      router.replace("/login");
+
+      return Promise.resolve();
+    } catch (error: any) {
+      console.error("Error verifying OTP:", error);
+      let errorMessage = "Failed to verify OTP. Please try again.";
+
+      if (error.code === "auth/invalid-verification-code") {
+        errorMessage = "Invalid verification code. Please check and try again.";
+      } else if (error.code === "auth/code-expired") {
+        errorMessage =
+          "Verification code has expired. Please request a new one.";
+      }
+
+      Alert.alert("Error", errorMessage);
+      return Promise.reject(error);
+    } finally {
+      setLoading(false);
+    }
   };
   return (
     <SafeAreaView style={GeneralStyles.mainContainer}>
-      <View style={styles.container}>
+      <View style={RegisterStyles.container}>
         <ImageBackground
           source={require("../../assets/images/loginBg.png")}
           resizeMode="cover"
-          style={styles.backgroundImage}
+          style={RegisterStyles.backgroundImage}
         >
-          <View style={styles.formContainer}>
-            <Text style={styles.title}>Sign Up</Text>
+          <View style={RegisterStyles.formContainer}>
+            <Text style={RegisterStyles.title}>Sign Up</Text>
 
             {/* Name Input */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Name*</Text>
+            <View style={RegisterStyles.inputContainer}>
+              <Text style={RegisterStyles.label}>Name*</Text>
               <TextInput
                 style={[
-                  styles.textInput,
-                  errors.name ? styles.inputError : null,
+                  RegisterStyles.textInput,
+                  errors.name ? RegisterStyles.inputError : null,
                 ]}
                 value={form.name}
                 onChangeText={(text) => handleChange("name", text)}
@@ -252,46 +357,119 @@ export default function Register() {
                 autoCorrect={false}
               />
               {!!errors.name && (
-                <Text style={styles.errorText}>{errors.name}</Text>
+                <Text style={RegisterStyles.errorText}>{errors.name}</Text>
               )}
             </View>
 
             {/* Phone Input */}
             <PhoneInputWithPicker
-              onChangeText={(text: string) => handleChange("phoneNumber", text)}
-              onChangeFormattedText={handleFormattedChange}
-              placeholder="7991162753"
-              label="Phone Number*"
+              value={form.phoneData?.phoneNumber || ""}
+              onChangeText={(text) => {
+                const phoneData: PhoneData = {
+                  ...(form.phoneData || {
+                    countryCode: "IN",
+                    callingCode: "91",
+                    nationalNumber: "",
+                    phoneNumber: "",
+                    fullNumber: "",
+                    isValid: false,
+                  }),
+                  nationalNumber: text,
+                  phoneNumber: text,
+                  fullNumber: `+91${text}`,
+                  isValid: text.length === 10,
+                  countryCode: "IN",
+                  callingCode: "91",
+                };
+                setForm((prev) => ({
+                  ...prev,
+                  phoneData,
+                  phoneNumber: phoneData.fullNumber,
+                }));
+              }}
+              onChangeFormattedText={(data) => {
+                const phoneData: PhoneData = {
+                  countryCode: data.countryCode || "IN",
+                  callingCode: data.callingCode || "91",
+                  nationalNumber: data.phoneNumber,
+                  phoneNumber: data.phoneNumber,
+                  fullNumber:
+                    data.fullNumber ||
+                    `+${data.callingCode}${data.phoneNumber}`,
+                  isValid: data.phoneNumber
+                    ? data.phoneNumber.length >= 10
+                    : false,
+                };
+
+                setForm((prev) => ({
+                  ...prev,
+                  phoneData,
+                  phoneNumber: phoneData.fullNumber,
+                }));
+              }}
               maxLength={10}
               defaultCountryCode="IN"
+              label="Phone Number*"
+              placeholder="7991162753"
               error={errors.phone}
             />
 
             {/* Submit Button */}
             <TouchableOpacity
-              style={styles.submitButton}
+              style={[
+                RegisterStyles.submitButton,
+                loading && RegisterStyles.disabledButton,
+              ]}
               onPress={handleSubmit}
+              disabled={loading}
               activeOpacity={0.8}
             >
-              <Text style={styles.submitButtonText}>Get OTP</Text>
+              {loading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={RegisterStyles.submitButtonText}>
+                  {otpVisible ? "Resend OTP" : "Get OTP"}
+                </Text>
+              )}
             </TouchableOpacity>
 
-            <Text style={styles.otherSignUpText}>Other Sign Up Options</Text>
+            <Text style={RegisterStyles.otherSignUpText}>
+              Other Sign Up Options
+            </Text>
             <TouchableOpacity
               onPress={handleGoogleSignUp}
               activeOpacity={0.8}
-              style={styles.googleButton}
+              style={RegisterStyles.googleButton}
             >
               <Image
                 source={require("../../assets/images/google.png")}
-                style={styles.googleIcon}
+                style={RegisterStyles.googleIcon}
               />
-              <Text style={styles.googleButtonText}>Google Sign Up</Text>
+              <Text style={RegisterStyles.googleButtonText}>
+                Google Sign Up
+              </Text>
             </TouchableOpacity>
+            <View>
+              <Text style={RegisterStyles.otherSignUpText}>
+                Already have an account?{" "}
+                <Text
+                  onPress={() => router.replace("/login")}
+                  style={[
+                    RegisterStyles.otherSignUpText,
+                    { color: "#2E674D", backgroundColor: "transparent" },
+                  ]}
+                >
+                  Login
+                </Text>
+              </Text>
+            </View>
             <OtpPopup
               visible={otpVisible}
               onClose={() => setOtpVisible(false)}
               onVerified={handleOtpVerified}
+              resendTimer={resendTimer}
+              onResend={handleSubmit}
+              loading={loading}
             />
           </View>
         </ImageBackground>
@@ -299,94 +477,3 @@ export default function Register() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  backgroundImage: {
-    flex: 1,
-  },
-  formContainer: {
-    marginTop: Dimensions.get("window").height * 0.3,
-    paddingHorizontal: "5%",
-  },
-  title: {
-    fontSize: 24,
-    color: "black",
-    fontWeight: "bold",
-    marginBottom: 20,
-  },
-  inputContainer: {
-    marginBottom: 15,
-  },
-  label: {
-    fontSize: 16,
-    color: "black",
-    marginBottom: 5,
-    fontWeight: "500",
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    paddingVertical: 18,
-    fontSize: 16,
-    backgroundColor: "#f8f9fa",
-    color: "black",
-  },
-  inputError: {
-    borderColor: "#ff4444",
-  },
-  errorText: {
-    color: "#ff4444",
-    fontSize: 12,
-    marginTop: 5,
-  },
-  submitButton: {
-    backgroundColor: "#2E674D",
-    borderRadius: 20,
-    paddingVertical: 15,
-    marginTop: 15,
-    alignItems: "center",
-  },
-  submitButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  otherSignUpText: {
-    marginTop: "8%",
-    fontSize: 12,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  googleButton: {
-    marginTop: "5%",
-    alignItems: "center",
-    justifyContent: "space-evenly",
-    width: "50%",
-    padding: "2%",
-    borderRadius: 100,
-    alignSelf: "center",
-    flexDirection: "row",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    backgroundColor: "white",
-  },
-  googleIcon: {
-    width: 35,
-    height: 35,
-    padding: "2%",
-  },
-  googleButtonText: {
-    color: "black",
-  },
-});

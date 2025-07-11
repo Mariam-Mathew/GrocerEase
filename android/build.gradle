@@ -1,15 +1,25 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
+    ext {
+        // Expo compatible versions
+        kotlinVersion = "1.8.0"
+        buildToolsVersion = "34.0.0"
+        compileSdkVersion = 34
+        targetSdkVersion = 34
+        ndkVersion = "25.1.8937393"
+        minSdkVersion = 21
+    }
   repositories {
     google()
     mavenCentral()
   }
   dependencies {
-        classpath 'com.google.gms:google-services:4.4.1'
-    classpath('com.android.tools.build:gradle')
+    classpath 'com.google.gms:google-services:4.4.1'
+    classpath 'com.google.firebase:firebase-crashlytics-gradle:2.9.9'
+    classpath('com.android.tools.build:gradle:8.1.0')
     classpath('com.facebook.react:react-native-gradle-plugin')
-    classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
+    classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
   }
 }
 
