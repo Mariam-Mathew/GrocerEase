@@ -14,6 +14,7 @@ import {
   Image,
   ImageBackground,
   Keyboard,
+  Platform,
   SafeAreaView,
   Text,
   TextInput,
@@ -45,9 +46,17 @@ interface ApiResponse {
     user: {
       _id?: string;
       id?: string;
+      user_id?: string;
     };
   };
   message?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  user?: {
+    _id?: string;
+    id?: string;
+    user_id?: string;
+  };
 }
 
 const INITIAL_FORM: FormState = {
@@ -76,100 +85,156 @@ export default function Login() {
 
   const { login } = useStore();
   const timerRef: any = useRef<NodeJS.Timeout | null>(null);
+  const otpInputRef = useRef<TextInput>(null);
 
-  const handleLoginSuccess = async (tokens: {
-    accessToken: string;
-    refreshToken: string;
-    userID: string;
-  }) => {
-    try {
-      await login(tokens);
-      // Navigation will be handled automatically by the NavigationController
-      Alert.alert("Success", "Signed in successfully!");
-    } catch (error) {
-      console.error("Login failed:", error);
-      Alert.alert("Error", "Failed to save login information");
-    }
-  };
-  const otpInputRef: any = useRef<TextInput>(null);
+  // Use individual selectors to prevent infinite loops
+  const isLoggedIn = useStore((state: any) => state.isLoggedIn);
+  const user = useStore((state: any) => state.user);
+  const tokens = useStore((state: any) => state.tokens);
 
-  const [request, response, promptAsync] = Google.useAuthRequest({
+  // Google Auth Request with enhanced configuration
+  const [request, response, promptAsync]: any = Google.useAuthRequest({
     iosClientId:
-      "723221915171-galo0rgnakv8a4fk2i0j836j0aim40pc.apps.googleusercontent.com",
+      "200626670415-70qcnevflirmq55e8soi75csaa42i6e3.apps.googleusercontent.com",
     androidClientId:
-      "723221915171-9de4ta6tbvjphia4s5mnl8n622gpa30a.apps.googleusercontent.com",
+      "200626670415-54ilrn5uaj5o0kl4jl23l3qqnq9jbpf9.apps.googleusercontent.com",
     webClientId:
-      "723221915171-9ggjhvc6stlt7bd80l3ijbg057rh85ak.apps.googleusercontent.com",
+      "200626670415-2ng40sq10raoh0n47i7q6afvhdjq96b8.apps.googleusercontent.com",
+
+    scopes: ["openid", "profile", "email"],
   });
 
-  // Cleanup timer on unmount
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
+  // FIXED: Improved network check with fallback endpoints
+  const checkNetworkAndAPI = useCallback(async () => {
+    try {
+      console.log("=== Network Check ===");
+      console.log("Base URL:", baseUrl);
+
+      // Try multiple endpoints to check connectivity
+      const endpoints = [
+        `${baseUrl}auth/test`,
+        `${baseUrl}`, // Root endpoint
+      ];
+
+      let connected = false;
+      for (const endpoint of endpoints) {
+        try {
+          const testResponse = await axios.get(endpoint, {
+            timeout: 5000,
+          });
+          console.log(
+            `API check successful at ${endpoint}:`,
+            testResponse.status
+          );
+          connected = true;
+          break;
+        } catch (err) {
+          console.log(`Failed to connect to ${endpoint}`);
+        }
       }
-    };
+
+      if (!connected) {
+        // Try a basic internet connectivity test
+        try {
+          await axios.get("https://www.google.com", {
+            timeout: 5000,
+          });
+          console.log("Internet connectivity: OK");
+          console.log("API server appears to be down or unreachable");
+          return false;
+        } catch (internetError) {
+          console.error("No internet connectivity:", internetError);
+          return false;
+        }
+      }
+
+      return connected;
+    } catch (error) {
+      console.error("Network/API check failed:", error);
+      return false;
+    }
   }, []);
 
-  // Handle Google auth response
-  useEffect(() => {
-    if (response?.type === "success") {
-      const { authentication } = response;
-      if (authentication?.idToken) {
-        googleSignIn(authentication.idToken);
-      } else {
-        Alert.alert("Error", "Failed to get authentication token from Google");
-      }
-    } else if (response?.type === "error") {
-      console.error("Google auth error:", response.error);
-      Alert.alert("Error", "Google authentication failed. Please try again.");
-    }
-  }, [response]);
+  // Config check remains the same
+  const checkGoogleAuthConfig = useCallback(() => {
+    console.log("=== Google Auth Config Check ===");
+    console.log("Platform:", Platform.OS);
+    console.log("Request object:", request);
+    console.log("Request ready:", !!request);
 
-  // Resend timer effect
-  useEffect(() => {
-    if (resendTimer > 0) {
-      timerRef.current = setInterval(() => {
-        setResendTimer((prev) => {
-          if (prev <= 1) {
-            if (timerRef.current) clearInterval(timerRef.current);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
+    const configs = {
+      ios: "200626670415-70qcnevflirmq55e8soi75csaa42i6e3.apps.googleusercontent.com",
+      android:
+        "200626670415-54ilrn5uaj5o0kl4jl23l3qqnq9jbpf9.apps.googleusercontent.com",
+      web: "200626670415-2ng40sq10raoh0n47i7q6afvhdjq96b8.apps.googleusercontent.com",
     };
-  }, [resendTimer]);
 
-  const handleGoogleLogin = async () => {
-    if (loading) return;
+    console.log("Using config:", configs);
+  }, [request]);
 
-    try {
-      setLoading(true);
-      await promptAsync();
-    } catch (error) {
-      console.error("Google login error:", error);
-      Alert.alert(
-        "Error",
-        "Failed to initialize Google sign-in. Please try again."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Enhanced login success handler
+  const handleLoginSuccess = useCallback(
+    async (tokens: {
+      accessToken: string;
+      refreshToken: string;
+      userID: string;
+    }) => {
+      console.log("=== Login Success Handler ===");
+      console.log("Tokens received:", {
+        accessToken: tokens.accessToken ? "✓" : "✗",
+        refreshToken: tokens.refreshToken ? "✓" : "✗",
+        userID: tokens.userID ? "✓" : "✗",
+      });
 
+      try {
+        await login(tokens);
+        console.log("Login state updated successfully");
+
+        // Show success message
+        Alert.alert("Success", "Signed in successfully!", [
+          {
+            text: "OK",
+            onPress: () => {
+              console.log("Attempting navigation to tabs");
+              router.replace("/(tabs)");
+            },
+          },
+        ]);
+      } catch (error) {
+        console.error("Login failed:", error);
+        Alert.alert("Error", "Failed to save login information");
+      }
+    },
+    [login]
+  );
+
+  // FIXED: Enhanced Google Sign-In with better error handling
   const googleSignIn = useCallback(
     async (token: string) => {
       console.log("=== Starting Google Signin ===");
+      console.log("Token received:", token ? "✓" : "✗");
+      console.log("Environment:", __DEV__ ? "DEV" : "PROD");
+      console.log("Platform:", Platform.OS);
 
       try {
         setLoading(true);
+
+        // Check network first
+        const networkOk = await checkNetworkAndAPI();
+        if (!networkOk) {
+          Alert.alert(
+            "Network Error",
+            "Cannot connect to server. Please check your internet connection and try again.",
+            [
+              { text: "Retry", onPress: () => googleSignIn(token) },
+              { text: "Cancel", style: "cancel" },
+            ]
+          );
+          return;
+        }
+
+        console.log("Making request to:", `${baseUrl}auth/google-login`);
+
         const response = await axios.post<ApiResponse>(
           `${baseUrl}auth/google-login`,
           { idToken: token },
@@ -180,55 +245,141 @@ export default function Login() {
         );
 
         console.log("=== Google Login Response ===");
-        console.log("Status:", response.data);
-        const res: any = response.data;
-        if (response.data) {
-          console.log("User Data:", res);
-          // if (!res.accessToken || !res.refreshToken) {
-          //   throw new Error("Invalid tokens received from server");
-          // }
+        console.log("Status:", response.status);
+        console.log("Response structure:", {
+          hasData: !!response.data,
+          hasDataProperty: !!response.data?.data,
+          hasAccessToken: !!(
+            response.data?.data?.accessToken || response.data?.accessToken
+          ),
+          hasRefreshToken: !!(
+            response.data?.data?.refreshToken || response.data?.refreshToken
+          ),
+          hasUser: !!(response.data?.data?.user || response.data?.user),
+        });
 
-          // Store tokens and navigate
+        const responseData = response.data;
+        let accessToken, refreshToken, user;
+
+        // Handle different response structures
+        if (responseData?.data) {
+          // Response has nested data structure
+          accessToken = responseData.data.accessToken;
+          refreshToken = responseData.data.refreshToken;
+          user = responseData.data.user;
+        } else {
+          // Response has flat structure
+          accessToken = responseData?.accessToken;
+          refreshToken = responseData?.refreshToken;
+          user = responseData?.user;
+        }
+
+        console.log("Extracted data:", {
+          accessToken: accessToken ? "✓" : "✗",
+          refreshToken: refreshToken ? "✓" : "✗",
+          user: user ? "✓" : "✗",
+        });
+
+        if (accessToken && user) {
           await handleLoginSuccess({
-            accessToken: res?.accessToken,
-            refreshToken: res.refreshToken,
-            userID: res.user?.user_id || res.user?.id,
+            accessToken,
+            refreshToken: refreshToken || "",
+            userID: user?.user_id || user?.id || user?._id || "",
           });
         } else {
           throw new Error("Invalid response structure from server");
         }
-      } catch (error) {
-        console.error("Google sign-in error:", error);
+      } catch (error: any) {
+        console.error("=== Google Sign-in Error ===");
+        console.error("Error type:", error?.constructor?.name);
+        console.error("Error message:", error?.message);
+        console.error("Full error:", error);
 
         let errorMessage = "Failed to sign in with Google. Please try again.";
+        let showRetry = false;
 
         if (axios.isAxiosError(error)) {
           const axiosError = error as AxiosError<{ message?: string }>;
-          if (axiosError.response?.data?.message) {
+          console.error("Response status:", axiosError.response?.status);
+          console.error("Response data:", axiosError.response?.data);
+
+          if (axiosError.response?.status === 404) {
+            errorMessage = "Server endpoint not found. Please contact support.";
+          } else if (axiosError.response?.status === 500) {
+            errorMessage = "Server error. Please try again later.";
+            showRetry = true;
+          } else if (axiosError.response?.data?.message) {
             errorMessage = axiosError.response.data.message;
           } else if (axiosError.code === "ECONNABORTED") {
             errorMessage =
               "Request timeout. Please check your internet connection.";
-          } else if (!axiosError.response) {
+            showRetry = true;
+          } else if (axiosError.code === "NETWORK_ERROR") {
             errorMessage =
               "Network error. Please check your internet connection.";
+            showRetry = true;
+          } else if (!axiosError.response) {
+            errorMessage =
+              "Cannot connect to server. Please check your internet connection.";
+            showRetry = true;
           }
         }
 
-        Alert.alert("Error", errorMessage);
+        if (showRetry) {
+          Alert.alert("Error", errorMessage, [
+            { text: "Retry", onPress: () => googleSignIn(token) },
+            { text: "Cancel", style: "cancel" },
+          ]);
+        } else {
+          Alert.alert("Error", errorMessage);
+        }
       } finally {
         setLoading(false);
       }
     },
-    [login]
+    [checkNetworkAndAPI, handleLoginSuccess]
   );
 
+  // Enhanced Google login handler
+  const handleGoogleLogin = useCallback(async () => {
+    if (loading) return;
+
+    console.log("=== Starting Google Login Process ===");
+
+    try {
+      setLoading(true);
+
+      // Check if request is ready
+      if (!request) {
+        console.error("Google auth request not ready");
+        Alert.alert(
+          "Error",
+          "Google authentication not ready. Please try again."
+        );
+        return;
+      }
+
+      console.log("Prompting Google auth...");
+      const result = await promptAsync();
+      console.log("Prompt result:", result);
+    } catch (error) {
+      console.error("Google login initialization error:", error);
+      Alert.alert(
+        "Error",
+        "Failed to initialize Google sign-in. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [loading, request, promptAsync]);
+
+  // Form handlers remain the same
   const handleChange = useCallback((field: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, phone: "", otp: "" }));
   }, []);
 
-  const validateForm = () => {
+  const validateForm = useCallback(() => {
     const newErrors = { ...INITIAL_ERRORS };
     let valid = true;
 
@@ -239,9 +390,9 @@ export default function Login() {
 
     setErrors(newErrors);
     return valid;
-  };
+  }, [form.phoneData?.isValid]);
 
-  const validateOtp = () => {
+  const validateOtp = useCallback(() => {
     const newErrors = { ...INITIAL_ERRORS };
     let valid = true;
 
@@ -252,13 +403,52 @@ export default function Login() {
 
     setErrors(newErrors);
     return valid;
-  };
+  }, [form.otp]);
 
-  const startResendTimer = () => {
+  const startResendTimer = useCallback(() => {
     setResendTimer(RESEND_TIMER_DURATION);
-  };
+  }, []);
 
-  const handleSubmit = async () => {
+  const handleFirebaseError = useCallback((error: any, action: string) => {
+    let errorMessage = `Failed to ${action}. Please try again.`;
+
+    switch (error.code) {
+      case "auth/invalid-phone-number":
+        errorMessage = "Invalid phone number format. Please check your number.";
+        break;
+      case "auth/too-many-requests":
+        errorMessage = "Too many requests. Please try again later.";
+        break;
+      case "auth/quota-exceeded":
+        errorMessage = "SMS quota exceeded. Please try again later.";
+        break;
+      case "auth/app-not-authorized":
+        errorMessage =
+          "App not authorized for SMS verification. Please contact support.";
+        break;
+      case "auth/captcha-check-failed":
+        errorMessage = "Captcha verification failed. Please try again.";
+        break;
+      case "auth/invalid-verification-code":
+        errorMessage = "Invalid verification code. Please check and try again.";
+        break;
+      case "auth/code-expired":
+        errorMessage =
+          "Verification code has expired. Please request a new one.";
+        break;
+      case "auth/session-expired":
+        errorMessage = "Session expired. Please request a new OTP.";
+        break;
+      default:
+        if (error.message) {
+          errorMessage = error.message;
+        }
+    }
+
+    Alert.alert("Error", errorMessage);
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
     if (loading || !validateForm() || !form.phoneData) {
       return;
     }
@@ -300,9 +490,16 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    loading,
+    validateForm,
+    form.phoneData,
+    startResendTimer,
+    handleFirebaseError,
+  ]);
 
-  const handleOtpVerify = async () => {
+  // FIXED: Enhanced OTP verification with better error handling
+  const handleOtpVerify = useCallback(async () => {
     if (loading || !validateOtp() || !confirmation) {
       if (!confirmation) {
         Alert.alert(
@@ -330,43 +527,44 @@ export default function Login() {
       const idToken = await user.getIdToken();
       const phoneNumber = form.phoneData?.fullNumber || form.phoneNumber;
 
-      // Call your backend API to exchange Firebase token for your app tokens
-      const response = await axios.post<ApiResponse>(
-        `${baseUrl}/auth/phone-login`,
-        {
-          idToken,
-          phoneNumber,
-          uid: user.uid,
-        },
-        {
-          headers: { "Content-Type": "application/json" },
-          timeout: API_TIMEOUT,
-        }
-      );
+      try {
+        // Try to exchange tokens with backend
+        const response = await axios.post<ApiResponse>(
+          `${baseUrl}auth/phone-login`,
+          {
+            idToken,
+            phoneNumber,
+            uid: user.uid,
+          },
+          {
+            headers: { "Content-Type": "application/json" },
+            timeout: API_TIMEOUT,
+          }
+        );
 
-      if (response.data?.data) {
-        const {
-          accessToken,
-          refreshToken,
-          user: userData,
-        } = response.data.data;
+        if (response.data?.data) {
+          const {
+            accessToken,
+            refreshToken,
+            user: userData,
+          } = response.data.data;
 
-        if (!accessToken || !refreshToken) {
-          // Fallback to Firebase tokens if backend doesn't provide them
+          await handleLoginSuccess({
+            accessToken: accessToken || idToken,
+            refreshToken: refreshToken || "",
+            userID: userData?._id || userData?.id || user.uid,
+          });
+        } else {
+          // Fallback to Firebase tokens
           await handleLoginSuccess({
             accessToken: idToken,
             refreshToken: user.refreshToken || "",
             userID: user.uid,
           });
-        } else {
-          await handleLoginSuccess({
-            accessToken,
-            refreshToken,
-            userID: userData?._id || userData?.id || user.uid,
-          });
         }
-      } else {
-        // Fallback to Firebase tokens
+      } catch (backendError) {
+        console.log("Backend token exchange failed, using Firebase tokens");
+        // Use Firebase tokens as fallback
         await handleLoginSuccess({
           accessToken: idToken,
           refreshToken: user.refreshToken || "",
@@ -379,76 +577,22 @@ export default function Login() {
       ]);
     } catch (error: any) {
       console.error("Error verifying OTP:", error);
-
-      if (axios.isAxiosError(error)) {
-        // Backend error, but Firebase auth succeeded
-        console.log("Backend token exchange failed, using Firebase tokens");
-        try {
-          const user: any = auth().currentUser;
-          if (user) {
-            const idToken = await user.getIdToken();
-            await login({
-              accessToken: idToken,
-              refreshToken: user.refreshToken || "",
-              userID: user.uid,
-            });
-
-            Alert.alert("Success", "Phone number verified successfully!", [
-              { text: "OK", onPress: () => router.replace("/(tabs)") },
-            ]);
-            return;
-          }
-        } catch (fallbackError) {
-          console.error("Fallback auth failed:", fallbackError);
-        }
-      }
-
       handleFirebaseError(error, "verify OTP");
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    loading,
+    validateOtp,
+    confirmation,
+    form.otp,
+    form.phoneData,
+    form.phoneNumber,
+    handleLoginSuccess,
+    handleFirebaseError,
+  ]);
 
-  const handleFirebaseError = (error: any, action: string) => {
-    let errorMessage = `Failed to ${action}. Please try again.`;
-
-    switch (error.code) {
-      case "auth/invalid-phone-number":
-        errorMessage = "Invalid phone number format. Please check your number.";
-        break;
-      case "auth/too-many-requests":
-        errorMessage = "Too many requests. Please try again later.";
-        break;
-      case "auth/quota-exceeded":
-        errorMessage = "SMS quota exceeded. Please try again later.";
-        break;
-      case "auth/app-not-authorized":
-        errorMessage =
-          "App not authorized for SMS verification. Please contact support.";
-        break;
-      case "auth/captcha-check-failed":
-        errorMessage = "Captcha verification failed. Please try again.";
-        break;
-      case "auth/invalid-verification-code":
-        errorMessage = "Invalid verification code. Please check and try again.";
-        break;
-      case "auth/code-expired":
-        errorMessage =
-          "Verification code has expired. Please request a new one.";
-        break;
-      case "auth/session-expired":
-        errorMessage = "Session expired. Please request a new OTP.";
-        break;
-      default:
-        if (error.message) {
-          errorMessage = error.message;
-        }
-    }
-
-    Alert.alert("Error", errorMessage);
-  };
-
-  const handleResendOtp = async () => {
+  const handleResendOtp = useCallback(async () => {
     if (resendTimer > 0 || loading) {
       if (resendTimer > 0) {
         Alert.alert(
@@ -467,15 +611,140 @@ export default function Login() {
 
     // Resend OTP
     await handleSubmit();
-  };
+  }, [resendTimer, loading, handleSubmit]);
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setForm(INITIAL_FORM);
     setErrors(INITIAL_ERRORS);
     setOtpVisible(false);
     setConfirmation(null);
     setResendTimer(0);
-  };
+  }, []);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, []);
+
+  // Run initialization checks only once
+  useEffect(() => {
+    checkGoogleAuthConfig();
+    checkNetworkAndAPI();
+  }, [checkGoogleAuthConfig, checkNetworkAndAPI]);
+
+  // Debug store state changes
+  useEffect(() => {
+    console.log("=== Store State Change ===");
+    console.log("Store state:", { isLoggedIn, user, tokens });
+  }, [isLoggedIn, user, tokens]);
+
+  // Enhanced Google auth response handler
+  useEffect(() => {
+    if (!response) return;
+
+    console.log("=== Google Auth Response ===");
+    console.log("Response type:", response?.type);
+    console.log("Response params:", response?.params);
+    console.log("Response error:", response?.error);
+    console.log("Response authentication:", response?.authentication);
+
+    if (response?.type === "success") {
+      const { authentication } = response;
+      console.log("Authentication object:", authentication);
+
+      if (authentication?.idToken) {
+        console.log("ID Token received, proceeding with sign-in");
+        googleSignIn(authentication.idToken);
+      } else {
+        console.error("No ID token in authentication object");
+        Alert.alert("Error", "Failed to get authentication token from Google");
+      }
+    } else if (response?.type === "error") {
+      console.error("Google auth error:", response.error);
+      Alert.alert(
+        "Error",
+        `Google authentication failed: ${
+          response.error?.message || "Unknown error"
+        }`
+      );
+    } else if (response?.type === "cancel") {
+      console.log("User cancelled Google authentication");
+    }
+  }, [response, googleSignIn]);
+
+  // Resend timer effect
+  useEffect(() => {
+    if (resendTimer > 0) {
+      timerRef.current = setInterval(() => {
+        setResendTimer((prev) => {
+          if (prev <= 1) {
+            if (timerRef.current) {
+              clearInterval(timerRef.current);
+              timerRef.current = null;
+            }
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [resendTimer]);
+
+  // Phone data handlers
+  const handlePhoneDataChange = useCallback(
+    (text: string) => {
+      const phoneData: PhoneData = {
+        ...(form.phoneData || {
+          countryCode: "IN",
+          callingCode: "91",
+          nationalNumber: "",
+          phoneNumber: "",
+          fullNumber: "",
+          isValid: false,
+        }),
+        nationalNumber: text,
+        phoneNumber: text,
+        fullNumber: `+91${text}`,
+        isValid: text.length === 10,
+        countryCode: "IN",
+        callingCode: "91",
+      };
+      setForm((prev) => ({
+        ...prev,
+        phoneData,
+        phoneNumber: phoneData.fullNumber,
+      }));
+    },
+    [form.phoneData]
+  );
+
+  const handleFormattedPhoneChange = useCallback((data: any) => {
+    const phoneData: PhoneData = {
+      countryCode: data.countryCode || "IN",
+      callingCode: data.callingCode || "91",
+      nationalNumber: data.phoneNumber,
+      phoneNumber: data.phoneNumber,
+      fullNumber: data.fullNumber || `+${data.callingCode}${data.phoneNumber}`,
+      isValid: data.phoneNumber ? data.phoneNumber.length >= 10 : false,
+    };
+
+    setForm((prev) => ({
+      ...prev,
+      phoneData,
+      phoneNumber: phoneData.fullNumber,
+    }));
+  }, []);
 
   return (
     <SafeAreaView style={LoginStyles.container}>
@@ -492,49 +761,8 @@ export default function Login() {
               <>
                 <PhoneInputWithPicker
                   value={form.phoneData?.phoneNumber || ""}
-                  onChangeText={(text) => {
-                    const phoneData: PhoneData = {
-                      ...(form.phoneData || {
-                        countryCode: "IN",
-                        callingCode: "91",
-                        nationalNumber: "",
-                        phoneNumber: "",
-                        fullNumber: "",
-                        isValid: false,
-                      }),
-                      nationalNumber: text,
-                      phoneNumber: text,
-                      fullNumber: `+91${text}`,
-                      isValid: text.length === 10,
-                      countryCode: "IN",
-                      callingCode: "91",
-                    };
-                    setForm((prev) => ({
-                      ...prev,
-                      phoneData,
-                      phoneNumber: phoneData.fullNumber,
-                    }));
-                  }}
-                  onChangeFormattedText={(data) => {
-                    const phoneData: PhoneData = {
-                      countryCode: data.countryCode || "IN",
-                      callingCode: data.callingCode || "91",
-                      nationalNumber: data.phoneNumber,
-                      phoneNumber: data.phoneNumber,
-                      fullNumber:
-                        data.fullNumber ||
-                        `+${data.callingCode}${data.phoneNumber}`,
-                      isValid: data.phoneNumber
-                        ? data.phoneNumber.length >= 10
-                        : false,
-                    };
-
-                    setForm((prev) => ({
-                      ...prev,
-                      phoneData,
-                      phoneNumber: phoneData.fullNumber,
-                    }));
-                  }}
+                  onChangeText={handlePhoneDataChange}
+                  onChangeFormattedText={handleFormattedPhoneChange}
                   maxLength={10}
                   defaultCountryCode="IN"
                   label="Mobile Number"
@@ -566,9 +794,9 @@ export default function Login() {
                   onPress={handleGoogleLogin}
                   style={[
                     LoginStyles.googleButton,
-                    loading && LoginStyles.disabledButton,
+                    (loading || !request) && LoginStyles.disabledButton,
                   ]}
-                  disabled={loading}
+                  disabled={loading || !request}
                   activeOpacity={0.7}
                 >
                   <Image
@@ -576,9 +804,10 @@ export default function Login() {
                     style={LoginStyles.googleIcon}
                   />
                   <Text style={LoginStyles.googleButtonText}>
-                    Sign in with Google
+                    {!request ? "Loading..." : "Sign in with Google"}
                   </Text>
                 </TouchableOpacity>
+
                 <View>
                   <Text style={LoginStyles.otherSignUpText}>
                     Don&apos;t have an account?{" "}
@@ -661,14 +890,9 @@ export default function Login() {
                 <TouchableOpacity
                   onPress={resetForm}
                   disabled={loading}
-                  // style={LoginStyles.backButton}
                   activeOpacity={0.7}
                 >
-                  <Text
-                  // style={LoginStyles.backButtonText}
-                  >
-                    ← Change Phone Number
-                  </Text>
+                  <Text>← Change Phone Number</Text>
                 </TouchableOpacity>
               </View>
             )}

@@ -56,16 +56,17 @@ export default function Register() {
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     iosClientId:
-      "723221915171-galo0rgnakv8a4fk2i0j836j0aim40pc.apps.googleusercontent.com",
+      "200626670415-70qcnevflirmq55e8soi75csaa42i6e3.apps.googleusercontent.com",
     androidClientId:
-      "723221915171-9de4ta6tbvjphia4s5mnl8n622gpa30a.apps.googleusercontent.com",
+      "200626670415-54ilrn5uaj5o0kl4jl23l3qqnq9jbpf9.apps.googleusercontent.com",
     webClientId:
-      "723221915171-9ggjhvc6stlt7bd80l3ijbg057rh85ak.apps.googleusercontent.com",
+      "200626670415-2ng40sq10raoh0n47i7q6afvhdjq96b8.apps.googleusercontent.com",
   });
 
   const { login } = useStore();
 
   useEffect(() => {
+    console.log("response info:", response);
     if (response?.type === "success") {
       const { authentication }: any = response;
       fetchUserInfo(authentication.accessToken);

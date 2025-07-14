@@ -12,7 +12,20 @@
           "package_name": "com.mariam22.GrocerEase"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "200626670415-54ilrn5uaj5o0kl4jl23l3qqnq9jbpf9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mariam22.GrocerEase",
+            "certificate_hash": "02ba5240309aba35b90d7af4c0b04f2c19da9fa2"
+          }
+        },
+        {
+          "client_id": "200626670415-as5it9ktnc344nt69q2nb4d5b7o2p4ni.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBkVxArJC7AKTKjPFZ3-qztbR98ZCruvMk"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "200626670415-2ng40sq10raoh0n47i7q6afvhdjq96b8.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "200626670415-0u0kmf72f6710m9iccda64bpado1ogp5.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.mariam22.GrocerEase"
+              }
+            }
+          ]
         }
       }
     }
